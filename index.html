@@ -901,7 +901,139 @@
             </p>
           </div>
         </aside>
+
+        <!-- Polygon Aave v3 live rate tracker -->
+        <section class="panel" aria-label="Polygon Aave v3 live rates">
+          <div class="panel-inner">
+            <div class="panel-header">
+              <div class="panel-title">
+                Polygon Aave v3 – Live Stablecoin Rates
+                <span class="panel-title-pill">On-demand · Mainnet</span>
+              </div>
+              <div class="panel-controls">
+                <button id="aave-refresh-btn" class="cta-secondary" type="button">
+                  <span class="cta-secondary-dot"></span>
+                  Refresh live rates
+                </button>
+                <span id="aave-last-updated" class="badge-outline">Not loaded yet</span>
+              </div>
+            </div>
+
+            <div class="liquidity-grid">
+              <div class="liquidity-row">
+                <div class="side-card" style="grid-column: 1 / -1">
+                  <div class="side-header">
+                    <span class="side-title">Stablecoin markets (Polygon)</span>
+                    <span class="side-token">
+                      <span class="token-chip">A</span> Aave v3 live data
+                    </span>
+                  </div>
+                  <div class="side-metrics">
+                    <div class="side-amount">
+                      <span style="font-size: 13px; color: var(--text-muted);">
+                        Supply &amp; borrow APY pulled directly from Aave contracts when you click refresh.
+                      </span>
+                    </div>
+                  </div>
+                  <div class="side-sub">
+                    Data is fetched on demand from the Polygon Aave v3 Protocol Data Provider. Compare DAI, USDC and USDT
+                    supply and borrow yields in real time.
+                  </div>
+                  <div class="side-footer">
+                    <span class="chip-soft">Network: Polygon · Market: Aave v3</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="side-card" style="grid-column: 1 / -1; overflow-x: auto;">
+                <table id="aave-rates-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                  <thead>
+                    <tr>
+                      <th style="text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle);">
+                        Token
+                      </th>
+                      <th style="text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle);">
+                        Supply APY %
+                      </th>
+                      <th style="text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle);">
+                        Variable borrow APY %
+                      </th>
+                      <th style="text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle);">
+                        Stable borrow APY %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody id="aave-rates-body">
+                    <tr>
+                      <td colspan="4" style="padding: 8px; color: var(--text-muted);">
+                        Click “Refresh live rates” to load data from Polygon Aave v3.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
+
+    <script>
+      (function () {
+        const refreshBtn = document.getElementById("aave-refresh-btn");
+        const lastUpdatedEl = document.getElementById("aave-last-updated");
+        const tbody = document.getElementById("aave-rates-body");
+
+        if (!refreshBtn || !lastUpdatedEl || !tbody) return;
+
+        async function loadAaveRates() {
+          lastUpdatedEl.textContent = "Loading…";
+          tbody.innerHTML =
+            '<tr><td colspan="4" style="padding:8px; color: var(--text-muted);">Fetching rates from Polygon Aave v3…</td></tr>';
+
+          try {
+            const res = await fetch("/api/aave-rates");
+            if (!res.ok) {
+              throw new Error("Request failed with status " + res.status);
+            }
+
+            const data = await res.json();
+            const rates = Array.isArray(data.rates) ? data.rates : [];
+
+            lastUpdatedEl.textContent = data.updatedAt
+              ? "Last updated: " + new Date(data.updatedAt).toLocaleString()
+              : "Last updated just now";
+
+            if (!rates.length) {
+              tbody.innerHTML =
+                '<tr><td colspan="4" style="padding:8px; color: var(--text-muted);">No rate data returned.</td></tr>';
+              return;
+            }
+
+            // Sort by highest supply APY descending by default
+            rates.sort((a, b) => (b.supplyAPY || 0) - (a.supplyAPY || 0));
+
+            tbody.innerHTML = "";
+            for (const row of rates) {
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td style="padding:6px 8px;">${row.tokenSymbol || "?"}</td>
+                <td style="padding:6px 8px;">${(row.supplyAPY ?? 0).toFixed(2)}</td>
+                <td style="padding:6px 8px;">${(row.variableBorrowAPY ?? 0).toFixed(2)}</td>
+                <td style="padding:6px 8px;">${(row.stableBorrowAPY ?? 0).toFixed(2)}</td>
+              `;
+              tbody.appendChild(tr);
+            }
+          } catch (err) {
+            console.error(err);
+            lastUpdatedEl.textContent = "Error loading rates";
+            tbody.innerHTML =
+              '<tr><td colspan="4" style="padding:8px; color: var(--error);">Failed to load rates. Check the server logs.</td></tr>';
+          }
+        }
+
+        refreshBtn.addEventListener("click", loadAaveRates);
+      })();
+    </script>
   </body>
 </html>
